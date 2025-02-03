@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- ! ДОБАВЛЕНО для корректной работы в WebView -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Secure Content Delivery</title>
     <style>
+        /* ... ваш существующий CSS без изменений ... */
         body {
             font-family: Arial, sans-serif;
             background: linear-gradient(135deg, #2e015a, #6829b7);
@@ -64,7 +67,7 @@
     <script>
         // Конфигурация безопасности
         const securityConfig = {
-            checkDelay: 2000, // Увеличенная задержка
+            checkDelay: 2000,
             interactionTime: 1500,
             botPatterns: [
                 /Googlebot/i,
@@ -133,31 +136,45 @@
         let isIOS = false;
         let isAndroid = false;
 
-        // Инициализация
-        setTimeout(() => {
-            isTikTokBrowser = /TikTok|WebView/i.test(navigator.userAgent);
-            isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        // ! ДОБАВЛЕНО: Улучшенное определение платформ
+        function detectPlatforms() {
+            // Определение iOS
+            isIOS = /iPad|iPhone|iPod/.test(navigator.platform) || 
+                   (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+
+            // Определение TikTok WebView
+            const tiktokPatterns = [
+                /TikTok\/[0-9.]+ CFNetwork/,
+                /iOS; (iPhone|iPad);.*WebKit\/.* Mobile\/.*TikTok/
+            ];
+            isTikTokBrowser = tiktokPatterns.some(p => p.test(navigator.userAgent));
+
+            // Определение Android
             isAndroid = /Android/i.test(navigator.userAgent);
+        }
 
-            initPlatformSpecificLogic();
-            setupEventHandlers();
-        }, securityConfig.interactionTime);
-
+        // ! ИЗМЕНЕНО: Обновленная логика инициализации
         function initPlatformSpecificLogic() {
+            detectPlatforms(); // Вызов нового метода определения платформ
+
             if (isIOS) {
                 document.getElementById('openLinkButton').style.display = 'none';
-                
-                if (isTikTokBrowser) {
-                    document.getElementById('mainHeader').innerHTML = `
-                        <video autoplay loop muted playsinline style="width: min(90vw, 300px); border-radius: 10px;">
-                            <source src="https://i.imgur.com/AVOl5S8.mp4" type="video/mp4">
-                        </video>
-                        <div style="margin: 15px 0; font-size: 0.9em;">
-                            Follow the video instructions above, or just tap the "Copy Link" button and paste it into your Google or Safari browser.
-                        </div>`;
-                } else {
-                    window.location.href = `http://${link}`;
-                }
+
+                // Всегда показываем контент сразу
+                document.getElementById('mainHeader').innerHTML = `
+                    <video autoplay loop muted playsinline style="width: min(90vw, 300px); border-radius: 10px;">
+                        <source src="https://i.imgur.com/AVOl5S8.mp4" type="video/mp4">
+                    </video>
+                    <div style="margin: 15px 0; font-size: 0.9em;">
+                        Follow the video instructions above, or just tap the "Copy Link" button and paste it into your Google or Safari browser.
+                    </div>`;
+
+                // ! ИЗМЕНЕНО: Отложенный редирект с проверкой WebView
+                setTimeout(() => {
+                    if (!isTikTokBrowser) {
+                        window.location.href = redirectUrl;
+                    }
+                }, 1000); // Даем время на отрисовку контента
             }
 
             if (isAndroid) {
@@ -175,17 +192,31 @@
             }
         }
 
+        // ! ИЗМЕНЕНО: Добавлен обработчик полной загрузки страницы
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                detectPlatforms();
+                initPlatformSpecificLogic();
+                setupEventHandlers();
+            }, securityConfig.interactionTime);
+        });
+
         function setupEventHandlers() {
             document.getElementById('openLinkButton').addEventListener('click', openLink);
         }
 
+        // ! ИЗМЕНЕНО: Оптимизированная функция открытия ссылки
         function openLink() {
-            if (isIOS && isTikTokBrowser) return copyLink();
-            
+            if (isIOS && isTikTokBrowser) {
+                copyLink();
+                return;
+            }
+
             if (isAndroid) {
                 window.location.href = `intent://${link}#Intent;package=com.android.chrome;scheme=https;end`;
+                return;
             }
-            
+
             window.open(redirectUrl, '_blank');
             showAlert('Redirecting to content...');
         }
